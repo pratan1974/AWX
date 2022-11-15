@@ -2,20 +2,20 @@
 - hosts: localhost
   gather_facts: no
   tasks:
-  - block:
-    - name: Generate update sql unix
-      local_action:
-         module: community.general.mssql_script
-         login_user: sa
-         login_password: Password123
-         login_host: windb
-         login_port: 1433
-         db: CMDB
-         script: |
+    - block:
+      - name: Generate update sql unix
+        local_action:
+          module: community.general.mssql_script
+          login_user: sa
+          login_password: Password123
+          login_host: windb
+          login_port: 1433
+          db: CMDB
+          script: |
               select * from t_Updates;
-      ignore_errors: yes
-      run_once: yes
-      register: result
+        ignore_errors: yes
+        run_once: yes
+        register: result
           
       - name: debug
         debug:
