@@ -36,7 +36,7 @@
 
         - name: Generate update sql unix
           local_action:
-            module: community.general.database.mssql.mssql_script
+            module: community.general.mssql_script
             login_user: sa
             login_password: Password123
             login_host: windb
