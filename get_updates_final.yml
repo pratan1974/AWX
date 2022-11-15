@@ -1,6 +1,6 @@
 
 ---
-- hosts: windows
+- hosts: all
   gather_facts: no
   vars:
     win_update_categories:
