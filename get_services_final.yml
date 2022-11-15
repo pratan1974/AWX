@@ -1,0 +1,55 @@
+- name: List all services
+  hosts: windows
+  tasks:
+  - name: Services List
+    ansible.windows.win_powershell:
+      script: |
+       [CmdletBinding()]
+         param(
+            [Parameter(
+                Mandatory = $false,
+                ValueFromPipeline = $true,
+                ValueFromPipelineByPropertyName = $true
+             )]
+         [string[]]  $ComputerName = $env:COMPUTERNAME
+         )
+       $services = Get-Service  | Select-Object DisplayName, Name, Status,StartType
+       foreach ($Event in $services) {
+
+         [PSCustomObject]@{
+           DisplayName  = $Event.DisplayName
+           Name         = $Event.Name
+           Status       = $Event.Status
+           StartType    = $Event.StartType
+         }
+       }
+    register: services_list
+
+  - name: Services List Fact
+    set_fact:
+      service: "{{services_list.output | to_json}}"
+
+  - name: Delete services from machine
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: |
+        Delete from t_services where host like '{{ ansible_facts.fqdn }}'
+    ignore_errors: yes
+
+  - name: Insert list of services
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: |
+        INSERT INTO t_services (Host, DisplayName, Name, Status, StartType) VALUES ('{{ ansible_facts.fqdn }}', '{{item.DisplayName}}','{{ item.Name }}','{{ item.Status.String }}','{{ item.StartType.String }}')
+    with_items: "{{service | from_json}}"
+    ignore_errors: yes

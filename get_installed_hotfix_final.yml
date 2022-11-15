@@ -1,0 +1,60 @@
+- name: List all installed HotFix
+  hosts: pt-ms005.groupinfra.com
+  tasks:
+  - name: Update installed List
+    ansible.windows.win_powershell:
+      script: |
+        [CmdletBinding()]
+          param(
+             [Parameter(
+                Mandatory = $false,
+                ValueFromPipeline = $true,
+                ValueFromPipelineByPropertyName = $true
+             )]
+             [string[]]  $ComputerName = $env:COMPUTERNAME
+          )
+        $hotfix = Get-HotFix | Select-Object hotfixid, description, installedon, installedby
+        foreach ($Event in $hotfix) {
+
+         [PSCustomObject]@{
+           ID           = $Event.hotfixid
+           Description  = $Event.description
+           InstalledOn  = $Event.installedon -f "yyyyMMdd"
+           InstalledBy  = $Event.installedby
+          }
+        }
+    register: hotfix_list
+
+  - name: HotFix List Fact
+    set_fact:
+      hotfix: "{{hotfix_list.output | to_json}}"
+
+  - name: Debug
+    debug:
+      msg: "{{hotfix_list.output | to_json}}"
+  
+
+  - name: Generate update sql windows
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: | 
+         DELETE t_installed_hotfix where host like '{{ ansible_facts.fqdn }}'
+    ignore_errors: yes
+
+  - name: Generate update sql windows
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: |
+        INSERT INTO t_installed_hotfix (Host, ID, Description, installedon, installedby) VALUES ('{{ ansible_facts.fqdn }}','{{item.ID}}','{{ item.Description }}','{{ item.InstalledOn }}','{{ item.InstalledBy }}')
+    with_items: "{{hotfix | from_json}}"
+    ignore_errors: yes

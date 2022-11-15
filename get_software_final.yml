@@ -1,0 +1,55 @@
+- name: List all installed Programs
+  hosts: windows
+  tasks:  
+  - name: Software List
+    ansible.windows.win_powershell:
+      script: |
+       [CmdletBinding()]
+         param(
+            [Parameter(
+                Mandatory = $false,
+                ValueFromPipeline = $true,
+                ValueFromPipelineByPropertyName = $true
+             )]
+         )
+       $software_installed = get-WmiObject Win32_Product | Select-Object identifyingnumber, name, vendor, version
+       foreach ($Event in $software_installed) {
+
+         [PSCustomObject]@{
+           ID           = $Event.identifyingnumber
+           Name         = $Event.name
+           Vendor       = $Event.vendor
+           Version      = $Event.Version
+         }
+       }
+    register: software_list
+
+  - name: Software List Fact
+    set_fact:
+      software: "{{software_list.output | to_json}}"
+
+- name: Generate update sql windows
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: | 
+         DELETE t_software where host like '{{ ansible_facts.fqdn }}'
+    ignore_errors: yes
+
+  - name: Generate update sql windows
+    local_action:
+      module: community.general.mssql_script
+      login_user: sa
+      login_password: Password123
+      login_host: windb
+      login_port: 1433
+      db: CMDB
+      script: |
+        INSERT INTO t_software (ID, Host, Name, Vendor, Version) VALUES ('{{item.ID}}','{{ ansible_facts.fqdn }}','{{ item.Name }}','{{ item.Vendor }}','{{ item.Version }}')
+    with_items: "{{software | from_json}}"
+    ignore_errors: yes
+      script: |
